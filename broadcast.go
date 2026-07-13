@@ -23,7 +23,7 @@ type Broadcaster[T any] struct {
 // receiving new values and watching for shutdown; because the send is non-
 // blocking, the main loop can send to each goroutine without blocking
 
-func run[T any](chanRec <-chan T, chanSend chan<- T, chanClose <-chan any) {
+func run[T any](chanRec <-chan T, chanSend chan<- T) {
 	defer close(chanSend)
 	queue := []T{}
 	for {
@@ -43,8 +43,6 @@ func run[T any](chanRec <-chan T, chanSend chan<- T, chanClose <-chan any) {
 			queue = append(queue, v)
 		case chanSendOrNil <- nextV:
 			queue = queue[1:]
-		case <-chanClose:
-			return
 		}
 	}
 }
@@ -65,7 +63,7 @@ func (b *Broadcaster[T]) loop() {
 			)
 			subscribers[chanSub] = chanRun
 			wg.Go(func() {
-				run(chanRun, chanSub, b.chanClose)
+				run(chanRun, chanSub)
 			})
 			b.chanSubscribeRet <- chanSub
 		case chanSub := <-b.chanUnsubscribe:
@@ -74,12 +72,16 @@ func (b *Broadcaster[T]) loop() {
 				delete(subscribers, chanSub)
 			}
 			b.chanUnsubscribeRet <- nil
-		case v := <-b.chanSend:
+		case v, ok := <-b.chanSend:
+			if !ok {
+				for _, chanRun := range subscribers {
+					close(chanRun)
+				}
+				return
+			}
 			for _, chanRun := range subscribers {
 				chanRun <- v
 			}
-		case <-b.chanClose:
-			return
 		}
 	}
 }
@@ -92,7 +94,6 @@ func New[T any]() *Broadcaster[T] {
 		chanUnsubscribe:    make(chan (<-chan T)),
 		chanUnsubscribeRet: make(chan any),
 		chanSend:           make(chan T),
-		chanClose:          make(chan any),
 		chanClosed:         make(chan any),
 	}
 	go b.loop()
@@ -122,6 +123,6 @@ func (b *Broadcaster[T]) Send(v T) {
 // Close shuts down the broadcaster. All subscribers currently listening for
 // broadcasts will have their receiving channels closed.
 func (b *Broadcaster[T]) Close() {
-	close(b.chanClose)
+	close(b.chanSend)
 	<-b.chanClosed
 }
