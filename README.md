@@ -5,7 +5,9 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/nitroshare/gobroadcast.svg)](https://pkg.go.dev/github.com/nitroshare/gobroadcast)
 [![MIT License](https://img.shields.io/badge/license-MIT-9370d8.svg?style=flat)](https://opensource.org/licenses/MIT)
 
-This package provides an implementation of the fan-out pattern.
+This package provides an implementation of the [fan-out pattern](https://en.wikipedia.org/wiki/Fan-out_(software)).
+
+Sending on a channel in Go normally results in a single channel receiving the value, even if multiple goroutines are receiving on the channel. Instead, this package provides `Broadcaster`, which multiple goroutines can `Subscribe()` to and receive copies of data `Sent()`:
 
 ```golang
 import "github.com/nitroshare/gobroadcast"
