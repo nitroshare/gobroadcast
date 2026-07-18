@@ -62,9 +62,11 @@ func (b *Broadcaster[T]) loop() {
 				chanRun = make(chan T)
 			)
 			subscribers[chanSub] = chanRun
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				run(chanRun, chanSub)
-			})
+			}()
 			b.chanSubscribeRet <- chanSub
 		case chanSub := <-b.chanUnsubscribe:
 			if chanRun, ok := subscribers[chanSub]; ok {
